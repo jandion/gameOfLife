@@ -173,8 +173,8 @@ function generateIteration() {
 				}
 			}
 			scene.remove(cells[cell]);
-			objects.remove(cells[cell]);
-			cells[cell]= null;
+			objects.splice( objects.indexOf( cells[cell] ), 1 );
+			cells[cell] = null;
 		}
 		objects=[plane];
 		cells = [];
