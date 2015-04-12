@@ -173,6 +173,8 @@ function generateIteration() {
 				}
 			}
 			scene.remove(cells[cell]);
+			objects.remove(cells[cell]);
+			cells[cell]= null;
 		}
 		objects=[plane];
 		cells = [];
@@ -184,6 +186,7 @@ function generateIteration() {
 					var pos = cell.split(',');
 					voxel.position.set(pos[0],pos[1],pos[2]);
 					cells.push(voxel);
+					objects.push(voxel);
 					scene.add( voxel );
 				}
 			} else {
@@ -193,6 +196,7 @@ function generateIteration() {
 					var pos = cell.split(',');
 					voxel.position.set(pos[0],pos[1],pos[2]);
 					cells.push(voxel);
+					objects.push(voxel);
 					scene.add( voxel );
 				}
 			}
@@ -236,8 +240,12 @@ function onDocumentMouseDown( event ) {
 			objects.push(voxel);
 			cells.push(voxel);
 		} else if(event.which == 3){
-			if(intersect.object != plane)
+			if(intersect.object != plane){
 				scene.remove(intersect.object);
+				objects.splice( objects.indexOf( intersect.object ), 1 );
+				cells.splice( cells.indexOf( intersect.object ), 1 );				
+				intersect.object=null;
+			}
 		}
 		render();
 	}
