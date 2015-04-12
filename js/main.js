@@ -11,14 +11,19 @@ var objects = [];
 var cells = [];
 var gui;
 var sRule = [2,3];
-var bRule = [3];
+var bRule = [3,6];
+var ruleS, ruleB;
+var text = {};
+var running = false;
+var item;
 init();
-render();
 
 function init() {
+	
 	//Add main div
 	container = document.createElement( 'div' );
 	document.body.appendChild( container );
+	
 	//Create camera and scene
 	camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 10000 );
 	camera.position.set( 500, 800, 1300 );
@@ -62,7 +67,7 @@ function init() {
 	scene.add( rollOverMesh );
 	
 	//Add camera controls
-	controls = new THREE.OrbitControls(camera);
+	controls = new THREE.OrbitControls(camera, renderer.domElement );
 	controls.addEventListener( 'change', render );
 
 	//Cube drawing
@@ -76,75 +81,122 @@ function init() {
 	mouse = new THREE.Vector2();
 	
 	//GUI
-	var gui = new dat.GUI();
-	var text = {};
+	gui = new dat.GUI();
 	text.Play = function() {
-	var newCells = {};
-	for( var cell in cells ) {
-		var j=0;
-		for(var i =-1; i<=1; i++){
-			for(var k =-1; k<=1; k++){
-				var x = cells[cell].position.x - 50*i;
-				var y = cells[cell].position.y - 50*j;
-				var z = cells[cell].position.z - 50*k;
-				if(newCells[[x,y,z]]!==undefined) {
-					newCells[[x,y,z]] = [newCells[[x,y,z]][0] || (i==0 && j==0 && k==0), newCells[[x,y,z]][1]+1];
-				} else {
-					newCells[[x,y,z]] = [i==0 && j==0 && k==0, 1];
-				}
-				if(i==0 && j==0 && k==0) newCells[[x,y,z]][1]--;
-				//TODO: check boundaries
-			}
-		}
-		//TODO: add 3D coordinates
-		scene.remove(cells[cell]);
-	}
-	objects=[plane];
-	cells = [];
-	for( var cell in newCells ){
-		if(newCells[cell][0]){
-			//Survive rule
-			if(sRule.indexOf(newCells[cell][1])>-1){
-				var voxel = new THREE.Mesh( cubeGeo, cubeMaterial );
-				var pos = cell.split(',');
-				voxel.position.set(pos[0],pos[1],pos[2]);
-				cells.push(voxel);
-				scene.add( voxel );
-			}
-		} else {
-			//Born rule
-			if(bRule.indexOf(newCells[cell][1])>-1){
-				var voxel = new THREE.Mesh( cubeGeo, cubeMaterial );
-				var pos = cell.split(',');
-				voxel.position.set(pos[0],pos[1],pos[2]);
-				cells.push(voxel);
-				scene.add( voxel );
-			}
-		}
-	}
+		running = true;
+		animate();
+		redrawGUI();
 	};
+	text.Pause = function() {
+		running = false;
+		redrawGUI();
+	}
 	text.Speed = 1;
-	text.Clear = false;
-	text.Survive = '2';
-	text.Born = '23';
+	text.Clear = function() {
+		for( var cell in cells ) {
+			scene.remove(cells[cell]);
+		}
+		cells = [];
+	}
+	text.Survive = '2,3';
+	text.Born = '3,6';
 	text.Expansion3D = false;
 	text.Painting3D = false;
-	var f1 = gui.addFolder('Controls')
-	f1.add(text, 'Play');
-	f1.add(text, 'Speed', 1, 5);
+	text.LimitedBox = true;
+	f1 = gui.addFolder('Controls')
+	item = f1.add(text, 'Play');
+	f1.add(text, 'Speed', 1, 10);
 	f1.add(text, 'Clear');
 	f1.open();
 	var f2 = gui.addFolder('Rules');
-	f2.add(text, 'Survive');
-	f2.add(text, 'Born');
+	ruleS = f2.add(text, 'Survive').onChange(function(newValue) {
+		newValue= newValue.replace(/[^,\d]/g,"").replace(/,,/g,",");
+		if(!running){
+			sRule=[];
+			sp = newValue.split(",");
+			for( i in sp) {
+				if(sp[i]!="") sRule.push(+sp[i]);
+			}
+		}
+	});
+	ruleB = f2.add(text, 'Born').onChange(function(newValue) {
+		newValue= newValue.replace(/[^,\d]/g,"").replace(/,,/g,",");
+		if(!running){
+			bRule=[];
+			sp = newValue.split(",");
+			for( i in sp) {
+				if(sp[i]!="") bRule.push(+sp[i]);
+			}
+		}
+	});
 	var f3 = gui.addFolder('Settings');
 	f3.add(text, 'Expansion3D');
 	f3.add(text, 'Painting3D');
-	
+	f3.add(text, 'LimitedBox');
+	redrawGUI();
 	
 	document.addEventListener( 'mousedown', onDocumentMouseDown, false );
 	document.addEventListener( 'mousemove', onDocumentMouseMove, false );
 	window.addEventListener( 'resize', onWindowResize, false );
+}
+
+function redrawGUI() {
+	f1.remove(item);
+	if(running)
+		item = f1.add(text, 'Pause');
+	else
+		item = f1.add(text, 'Play');
+}
+
+function generateIteration() {
+	var newCells = {};
+		for( var cell in cells ) {
+			for(var i =-1; i<=1; i++){
+				for(var k =-1; k<=1; k++){
+					for(var j=-1; j<=1; j++){
+						if(!text.Expansion3D && j!=0) continue;
+						var x = cells[cell].position.x - 50*i;
+						var y = cells[cell].position.y - 50*j;
+						var z = cells[cell].position.z - 50*k;
+						if(text.LimitedBox){
+							if(x>500 || x<-475 ||
+							y>1000 || y<0 ||
+							z>500 || z<-475) continue;
+						}	
+						if(newCells[[x,y,z]]!==undefined) {
+							newCells[[x,y,z]] = [newCells[[x,y,z]][0] || (i==0 && j==0 && k==0), newCells[[x,y,z]][1]+1];
+						} else {
+							newCells[[x,y,z]] = [i==0 && j==0 && k==0, 1];
+						}
+						if(i==0 && j==0 && k==0) newCells[[x,y,z]][1]--;
+						}
+				}
+			}
+			scene.remove(cells[cell]);
+		}
+		objects=[plane];
+		cells = [];
+		for( var cell in newCells ){
+			if(newCells[cell][0]){
+				//Survive rule
+				if(sRule.indexOf(newCells[cell][1])>-1){
+					var voxel = new THREE.Mesh( cubeGeo, cubeMaterial );
+					var pos = cell.split(',');
+					voxel.position.set(pos[0],pos[1],pos[2]);
+					cells.push(voxel);
+					scene.add( voxel );
+				}
+			} else {
+				//Born rule
+				if(bRule.indexOf(newCells[cell][1])>-1){
+					var voxel = new THREE.Mesh( cubeGeo, cubeMaterial );
+					var pos = cell.split(',');
+					voxel.position.set(pos[0],pos[1],pos[2]);
+					cells.push(voxel);
+					scene.add( voxel );
+				}
+			}
+		}
 }
 
 function onWindowResize() {
@@ -154,9 +206,9 @@ function onWindowResize() {
 	renderer.setSize( window.innerWidth, window.innerHeight );
 	render();
 }
-function onDocumentMouseMove( event ) {
 
-	event.preventDefault();
+function onDocumentMouseMove( event ) {
+	
 	mouse.set( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1 );
 	raycaster.setFromCamera( mouse, camera );
 	var intersects = raycaster.intersectObjects( objects );
@@ -169,23 +221,38 @@ function onDocumentMouseMove( event ) {
 
 }
 function onDocumentMouseDown( event ) {
-	event.preventDefault();
 	mouse.set( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1 );
 	raycaster.setFromCamera( mouse, camera );
 	var intersects = raycaster.intersectObjects( objects );
 	if ( intersects.length > 0 ) {
 		
 		var intersect = intersects[ 0 ];
-		if ( intersect.object != plane ) return;
+		if(event.which == 1){
+			if ( !text.Painting3D && intersect.object != plane ) return;
 			var voxel = new THREE.Mesh( cubeGeo, cubeMaterial );
 			voxel.position.copy( intersect.point ).add( intersect.face.normal );
 			voxel.position.divideScalar( 50 ).floor().multiplyScalar( 50 ).addScalar( 25 );
 			scene.add( voxel );
 			objects.push(voxel);
 			cells.push(voxel);
+		} else if(event.which == 3){
+			if(intersect.object != plane)
+				scene.remove(intersect.object);
+		}
 		render();
 	}
 }
+
+function animate() {
+	if(!running) return;
+	setTimeout( function() {
+        requestAnimationFrame( animate );
+    }, 1000 / text.Speed );
+	
+	generateIteration(  );
+	render();
+}
+
 
 function render() {
 	renderer.render( scene, camera );
