@@ -97,6 +97,9 @@ function init() {
 			scene.remove(cells[cell]);
 		}
 		cells = [];
+		objects = [];
+		objects.push( plane );
+		
 	}
 	text.Survive = '2,3';
 	text.Born = '3,6';
@@ -173,10 +176,10 @@ function generateIteration() {
 				}
 			}
 			scene.remove(cells[cell]);
-			objects.splice( objects.indexOf( cells[cell] ), 1 );
 			cells[cell] = null;
 		}
-		objects=[plane];
+		objects = [];
+		objects.push( plane );
 		cells = [];
 		for( var cell in newCells ){
 			if(newCells[cell][0]){
